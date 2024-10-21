@@ -1,8 +1,23 @@
 <template>
   <div id="app" class="container mt-5">
-    <h1 class="text-center mb-4">3 Sheldon Square Building</h1>
 
-    <div class="row">
+    <div class="col-md-4">
+        <div class="form-group">
+          <label for="buildingSelect">Select Building</label>
+          <select class="form-control" id="buildingSelect" v-model="selectedBuilding" @change="filterByBuilding">
+            <option v-for="building in buildings" :key="building.id" :value="building.id">
+              {{ building.name }}
+            </option>
+          </select>
+        </div>
+      </div>
+
+
+      <div v-if="loading">
+      <p>Loading data, please wait...</p>
+    </div>
+
+    <div v-if="!loading" class="row">
       <!-- Table Section -->
       <div class="col-md-8">
         <div class="table-responsive">
@@ -104,7 +119,6 @@
           </div>
         </div>
         
-        <!-- Move the chart here -->
         <div class="">
           <h3 class="text-center">CO2 Levels Over Time</h3>
           <CO2Chart 
@@ -124,6 +138,8 @@
 import axios from 'axios';
 import { onMounted, ref, computed } from 'vue';
 import CO2Chart from './components/CO2Chart.vue';
+
+
 export default {
   name: 'App',
   components: {
@@ -134,8 +150,11 @@ export default {
     const password = '7355608Egor$';
     const authString = btoa(`${username}:${password}`);
     const data = ref([]);
+    const buildings = ref([]);
+    const selectedBuilding = ref(null);
     const itemsPerPage = 10;
     const currentPage = ref(1);
+    const loading = ref(false);
 
     const fetchDeviceCache = async (record) => {
       try {
@@ -150,9 +169,10 @@ export default {
       }
     };
 
-    const fetchData = async () => {
+    const fetchData = async (id) => {
+      loading.value = true;
       try {
-        const response = await axios.get("https://console.beringar.co.uk/privateapi/sensorlatest/building/f9d56266-57b2-45ad-b6dc-e1a45d64f0b6/", {
+        const response = await axios.get(`https://console.beringar.co.uk/privateapi/sensorlatest/building/${id}/`, {
           headers: {
             'Authorization': `Basic ${authString}`
           }
@@ -165,8 +185,36 @@ export default {
       }
     };
 
+    const fetchBuildings = async () => {
+  try {
+    const response = await axios.get("https://console.beringar.co.uk/privateapi/building/", {
+      headers: {
+        'Authorization': `Basic ${authString}`
+      }
+    });
+
+    console.log(response.data); // Log the full response to check structure
+
+    // Assuming response.data contains an array of buildings directly
+    buildings.value = response.data; 
+
+    // If buildings are inside another object like {data: [..]}
+    // buildings.value = response.data.data; // Adjust this based on actual structure
+
+  } catch (error) {
+    console.error('Error fetching building data:', error);
+  }
+};
+
+    onMounted(fetchBuildings);
+
     onMounted(fetchData);
 
+    const filterByBuilding = () => {
+      if (selectedBuilding.value) {
+        fetchData(selectedBuilding.value);
+      }
+    };
     const averageTemperature = computed(() => {
       const temperatures = data.value.map(record => record.detail.temperature).filter(Boolean);
       const total = temperatures.reduce((sum, temp) => sum + temp, 0);
@@ -215,8 +263,13 @@ export default {
       return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
     };
 
-    return { data, currentPage, itemsPerPage, averageTemperature, averageHumidity, maxCO2, totalPages, paginatedData, co2Data, timestamps, formatDate };
+    
+
+    return { data, buildings, currentPage, itemsPerPage, averageTemperature, averageHumidity, maxCO2, totalPages, paginatedData, co2Data, timestamps, formatDate,
+      selectedBuilding, filterByBuilding
+     };
   },
+  
 
 
     
